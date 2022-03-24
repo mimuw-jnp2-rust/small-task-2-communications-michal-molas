@@ -24,7 +24,7 @@ impl MessageType {
         match &self {
             MessageType::Handshake => "[HANDSHAKE]",
             MessageType::Post => "[POST]",
-            MessageType::GetCount => "[GET COUNT]"
+            MessageType::GetCount => "[GET COUNT]",
         }
     }
 }
@@ -72,19 +72,24 @@ impl Client {
     // Attempts opening a new connection to the given address.
     // Method should return an error when a connection already exists.
     // The client should send a handshake to the server.
-    fn open(&mut self, addr: &str, server: Server) -> CommsResult<()>
-    {
+    fn open(&mut self, addr: &str, server: Server) -> CommsResult<()> {
         let s = String::from(addr);
         let con = self.connections.get(&s);
 
         match con {
-            Some(Connection::Open(_)) => Err(CommsError::ConnectionExists(s)),    
+            Some(Connection::Open(_)) => Err(CommsError::ConnectionExists(s)),
             Some(Connection::Closed) => Err(CommsError::ConnectionClosed(s)),
             _ => {
                 self.connections.insert(s, Connection::Open(server));
-                match self.send(addr, Message { msg_type: MessageType::Handshake, load: self.ip.clone() }) {
+                match self.send(
+                    addr,
+                    Message {
+                        msg_type: MessageType::Handshake,
+                        load: self.ip.clone(),
+                    },
+                ) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(e)
+                    Err(e) => Err(e),
                 }
             }
         }
@@ -104,12 +109,12 @@ impl Client {
                     Err(e) => {
                         self.connections.insert(s, Connection::Closed);
                         Err(e)
-                    },
-                    Ok(r) => Ok(r)
+                    }
+                    Ok(r) => Ok(r),
                 }
-            },
+            }
             Some(Connection::Closed) => Err(CommsError::ConnectionClosed(s)),
-            None => Err(CommsError::ConnectionNotFound(s)) 
+            None => Err(CommsError::ConnectionNotFound(s)),
         }
     }
 
@@ -127,7 +132,7 @@ impl Client {
         for key in self.connections.keys() {
             count += match self.connections.get(key) {
                 Some(&Connection::Closed) => 1,
-                _ => 0
+                _ => 0,
             };
         }
         count
@@ -140,7 +145,6 @@ enum Response {
     PostReceived,
     GetCount(u32),
 }
-
 
 #[derive(Clone)]
 struct Server {
@@ -156,7 +160,7 @@ impl Server {
             name,
             post_count: 0,
             limit,
-            connected_client: None
+            connected_client: None,
         }
     }
 
@@ -169,27 +173,21 @@ impl Server {
         eprintln!("{} received:\n{}", self.name, msg.content());
 
         match msg.msg_type {
-            MessageType::Handshake => {
-                match self.connected_client.is_some() {
-                    true => Err(CommsError::UnexpectedHandshake(self.name.clone())),
-                    false => {
-                        self.connected_client = Some(msg.load);
-                        Ok(Response::HandshakeReceived)
-                    }
+            MessageType::Handshake => match self.connected_client.is_some() {
+                true => Err(CommsError::UnexpectedHandshake(self.name.clone())),
+                false => {
+                    self.connected_client = Some(msg.load);
+                    Ok(Response::HandshakeReceived)
                 }
             },
             MessageType::GetCount => Ok(Response::GetCount(self.post_count)),
-            MessageType::Post => {
-                match self.post_count < self.limit {
-                    true => {
-                        self.post_count += 1;
-                        Ok(Response::PostReceived)
-                    },
-                    false => {
-                        Err(CommsError::ServerLimitReached(self.name.clone()))
-                    }
+            MessageType::Post => match self.post_count < self.limit {
+                true => {
+                    self.post_count += 1;
+                    Ok(Response::PostReceived)
                 }
-            }
+                false => Err(CommsError::ServerLimitReached(self.name.clone())),
+            },
         }
     }
 }
